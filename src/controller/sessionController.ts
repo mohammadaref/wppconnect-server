@@ -811,6 +811,7 @@ export async function deleteAllSessions(
      }
    */
   const logger = req.logger;
+
   logger.info('Received request to delete all sessions...');
 
   try {

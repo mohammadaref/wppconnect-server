@@ -17,6 +17,7 @@
 import archiver from 'archiver';
 import { Request } from 'express';
 import fileSystem from 'fs';
+import path from 'path';
 import unzipper from 'unzipper';
 
 import { logger } from '..';
@@ -123,7 +124,104 @@ export async function closeAllSessions(req: Request) {
       }
       delete clientsArray[session];
     } catch (error) {
-      logger.error('Not was possible stop session: ' + session);
+      logger.error('Error stopping session: ' + session, error);
     }
   });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+}
+
+export async function deleteAllSessions(req: Request) {
+  logger.info('Attempting to delete all sessions...');
+  await closeAllSessions(req);
+  logger.info('All active browser sessions closed.');
+
+  const sessionDirPath = path.resolve(config.customUserDataDir);
+  logger.info(`Attempting to clear session directory: ${sessionDirPath}`);
+
+  // --- Clear UserDataDir ---
+  try {
+    if (fileSystem.existsSync(sessionDirPath)) {
+      const items = fileSystem.readdirSync(sessionDirPath);
+      for (const item of items) {
+        const itemPath = path.join(sessionDirPath, item);
+        try {
+          if (fileSystem.lstatSync(itemPath).isDirectory()) {
+            fileSystem.rmSync(itemPath, { recursive: true, force: true });
+            logger.info(`Deleted directory: ${itemPath}`);
+          } else {
+            fileSystem.unlinkSync(itemPath);
+            logger.info(`Deleted file: ${itemPath}`);
+          }
+        } catch (itemErr: any) {
+          logger.error(
+            `Error deleting item ${itemPath}: ${itemErr.message || itemErr}`
+          );
+        }
+      }
+      logger.info(`Successfully cleared session directory: ${sessionDirPath}`);
+    } else {
+      logger.warn(
+        `Session directory does not exist, nothing to clear: ${sessionDirPath}`
+      );
+    }
+  } catch (err: any) {
+    logger.error(
+      `Error clearing session directory ${sessionDirPath}: ${
+        err.message || err
+      }`
+    );
+    // Decide if we should stop or continue to token deletion
+    // For now, log the error and continue to token deletion
+  }
+
+  // --- Clear Tokens Directory ---
+  const tokensDirPath = path.resolve(__dirname, '../../tokens'); // Path to tokens dir from src/util
+  logger.info(`Attempting to clear tokens directory: ${tokensDirPath}`);
+
+  try {
+    if (fileSystem.existsSync(tokensDirPath)) {
+      const items = fileSystem.readdirSync(tokensDirPath);
+      for (const item of items) {
+        const itemPath = path.join(tokensDirPath, item);
+        // Ensure we only delete files (like .data.json) and not unexpected subdirectories
+        if (!fileSystem.lstatSync(itemPath).isDirectory()) {
+          try {
+            fileSystem.unlinkSync(itemPath);
+            logger.info(`Deleted token file: ${itemPath}`);
+          } catch (itemErr: any) {
+            logger.error(
+              `Error deleting token file ${itemPath}: ${
+                itemErr.message || itemErr
+              }`
+            );
+          }
+        } else {
+          logger.warn(
+            `Skipping unexpected directory in tokens folder: ${itemPath}`
+          );
+        }
+      }
+      logger.info(`Successfully cleared tokens directory: ${tokensDirPath}`);
+    } else {
+      logger.warn(
+        `Tokens directory does not exist, nothing to clear: ${tokensDirPath}`
+      );
+    }
+  } catch (err: any) {
+    logger.error(
+      `Error clearing tokens directory ${tokensDirPath}: ${err.message || err}`
+    );
+    // If clearing either directory fails, we should probably report an overall failure
+    throw new Error(
+      `Failed to fully clear all session data. Error during token cleanup: ${
+        err.message || err
+      }`
+    );
+  }
+
+  // --- Final Return ---
+  return {
+    success: true,
+    message: 'All sessions closed and data/tokens cleared.',
+  };
 }

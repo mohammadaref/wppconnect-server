@@ -48,6 +48,10 @@ routes.get(
   SessionController.showAllSessions
 );
 routes.post('/api/:secretkey/start-all', SessionController.startAllSessions);
+routes.post(
+  '/api/:secretkey/delete-all-sessions',
+  SessionController.deleteAllSessions
+);
 
 // Sessions
 routes.get(

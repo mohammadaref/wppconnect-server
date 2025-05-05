@@ -25,6 +25,7 @@ import config from '../config';
 import CreateSessionUtil from '../util/createSessionUtil';
 import { callWebHook, contactToArray } from '../util/functions';
 import getAllTokens from '../util/getAllTokens';
+import { deleteAllSessions as utilDeleteAllSessions } from '../util/manageSession';
 import { clientsArray, deleteSessionOnArray } from '../util/sessionUtil';
 
 const SessionUtil = new CreateSessionUtil();
@@ -784,6 +785,45 @@ export async function editBusinessProfile(req: Request, res: Response) {
       status: 'error',
       message: 'Error on edit business profile',
       error: error,
+    });
+  }
+}
+
+export async function deleteAllSessions(
+  req: Request,
+  res: Response
+): Promise<void> {
+  /**
+   * #swagger.tags = ["Auth"]
+     #swagger.operationId = 'deleteAllSessions'
+     #swagger.summary = 'Closes all active sessions and deletes their data.'
+     #swagger.description = 'WARNING: This will stop all WhatsApp connections and remove all associated session files from the server.'
+     #swagger.security = [{
+            "bearerAuth": []
+     }]
+     #swagger.responses[200] = {
+        description: "All sessions closed and data deleted successfully.",
+        schema: { status: "success", message: "All sessions closed and data cleared." }
+     }
+     #swagger.responses[500] = {
+        description: "Error during session deletion.",
+        schema: { status: "error", message: "Description of error." }
+     }
+   */
+  const logger = req.logger;
+  logger.info('Received request to delete all sessions...');
+
+  try {
+    const result = await utilDeleteAllSessions(req);
+    logger.info('Successfully deleted all sessions and cleared data.');
+    res.status(200).json({ status: 'success', message: result.message });
+  } catch (error: any) {
+    logger.error(`Failed to delete all sessions: ${error.message || error}`);
+    res.status(500).json({
+      status: 'error',
+      message:
+        error.message ||
+        'An unexpected error occurred while deleting sessions.',
     });
   }
 }
